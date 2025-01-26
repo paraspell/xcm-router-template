@@ -123,8 +123,6 @@ const XcmTransfer = () => {
     const exchange =
       values.exchange === "Auto select" ? undefined : values.exchange;
 
-    console.log("values", values);
-
     // Create the RouterBuilder instance
     // and build the transaction
     return RouterBuilder()
