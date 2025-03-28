@@ -2,26 +2,22 @@ import { useState, useEffect, FormEvent, FC } from "react";
 import useCurrencyOptions from "./useCurrencyOptions";
 import {
   NODES_WITH_RELAY_CHAINS,
+  NODES_WITH_RELAY_CHAINS_DOT_KSM,
   TAsset,
+  TNodeDotKsmWithRelayChains,
   TNodeWithRelayChains,
 } from "@paraspell/sdk";
-import {
-  EXCHANGE_NODES,
-  TAutoSelect,
-  TExchangeNode,
-  TransactionType,
-} from "@paraspell/xcm-router";
+import { EXCHANGE_NODES, TExchangeNode } from "@paraspell/xcm-router";
 
 export type FormValues = {
-  from: TNodeWithRelayChains;
-  exchange: TExchangeNode | TAutoSelect;
-  to: TNodeWithRelayChains;
+  from?: TNodeDotKsmWithRelayChains;
+  exchange: TExchangeNode[];
+  to?: TNodeWithRelayChains;
   currencyFromOptionId: string;
   currencyToOptionId: string;
   recipientAddress: string;
   amount: string;
   slippagePct: string;
-  transactionType: keyof typeof TransactionType;
   currencyFrom: TAsset;
   currencyTo: TAsset;
 };
@@ -32,22 +28,23 @@ type Props = {
 };
 
 const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
-  // Prepare states for the form fields
-  const [originNode, setOriginNode] = useState<TNodeWithRelayChains>("Astar");
-  const [destinationNode, setDestinationNode] =
-    useState<TNodeWithRelayChains>("BifrostPolkadot");
-  const [exchangeNode, setExchangeNode] = useState<TExchangeNode | TAutoSelect>(
-    "HydrationDex"
-  );
-  const [currencyFromOptionId, setCurrencyFromOptionId] = useState("ASTR-1333");
-  const [currencyToOptionId, setCurrencyToOptionId] = useState("DOT-NO_ID");
+  // Prepare states for the form fields (origin and destination can be undefined)
+  const [originNode, setOriginNode] = useState<
+    TNodeDotKsmWithRelayChains | undefined
+  >("Astar");
+  const [destinationNode, setDestinationNode] = useState<
+    TNodeWithRelayChains | undefined
+  >("BifrostPolkadot");
+  const [exchangeNode, setExchangeNode] = useState<TExchangeNode[]>([
+    "HydrationDex",
+  ]);
+  const [currencyFromOptionId, setCurrencyFromOptionId] =
+    useState("ASTR-NO_ID");
+  const [currencyToOptionId, setCurrencyToOptionId] = useState("DOT-5");
   const [recipientAddress, setRecipientAddress] = useState(
     "5F5586mfsnM6durWRLptYt3jSUs55KEmahdodQ5tQMr9iY96"
   );
   const [amount, setAmount] = useState("10000000000000000000");
-  const [transactionType, setTransactionType] = useState<
-    keyof typeof TransactionType
-  >(TransactionType.FULL_TRANSFER);
 
   // Get currency options based on the selected nodes
   const {
@@ -55,14 +52,12 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
     currencyFromMap,
     currencyToOptions,
     currencyToMap,
-    isFromNotParaToPara,
-    isToNotParaToPara,
   } = useCurrencyOptions(originNode, exchangeNode, destinationNode);
 
   // Handle form submission
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    const transformedValues = {
+    const transformedValues: FormValues = {
       from: originNode,
       exchange: exchangeNode,
       to: destinationNode,
@@ -71,24 +66,26 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       recipientAddress,
       amount,
       slippagePct: "1",
-      transactionType,
       currencyFrom: currencyFromMap[currencyFromOptionId],
       currencyTo: currencyToMap[currencyToOptionId],
     };
 
-    // Pass the submitted form values to the parent component
     onSubmit(transformedValues);
   };
 
   useEffect(() => {
-    if (isFromNotParaToPara) {
-      setCurrencyFromOptionId(Object.keys(currencyFromMap)[0]);
+    // If currencyFromMap has keys, set the first one as default
+    const keys = Object.keys(currencyFromMap);
+    if (keys.length > 0) {
+      setCurrencyFromOptionId(keys[0]);
     }
   }, [currencyFromMap]);
 
   useEffect(() => {
-    if (isToNotParaToPara) {
-      setCurrencyToOptionId(Object.keys(currencyToMap)[0]);
+    // If currencyToMap has keys, set the first one as default
+    const keys = Object.keys(currencyToMap);
+    if (keys.length > 0) {
+      setCurrencyToOptionId(keys[0]);
     }
   }, [currencyToMap]);
 
@@ -97,13 +94,17 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       <label>
         Origin node
         <select
-          value={originNode}
+          value={originNode ?? ""}
           onChange={(e) =>
-            setOriginNode(e.target.value as TNodeWithRelayChains)
+            setOriginNode(
+              e.target.value === ""
+                ? undefined
+                : (e.target.value as TNodeDotKsmWithRelayChains)
+            )
           }
-          required
         >
-          {NODES_WITH_RELAY_CHAINS.map((node) => (
+          <option value="">None</option>
+          {NODES_WITH_RELAY_CHAINS_DOT_KSM.map((node) => (
             <option key={node} value={node}>
               {node}
             </option>
@@ -114,11 +115,18 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       <label>
         Exchange node
         <select
+          multiple
           value={exchangeNode}
-          onChange={(e) => setExchangeNode(e.target.value as TExchangeNode)}
+          onChange={(e) => {
+            const selectedOptions = Array.from(
+              e.target.selectedOptions,
+              (option) => option.value
+            );
+            setExchangeNode(selectedOptions as TExchangeNode[]);
+          }}
           required
         >
-          {["Auto select", ...EXCHANGE_NODES].map((node) => (
+          {EXCHANGE_NODES.map((node) => (
             <option key={node} value={node}>
               {node}
             </option>
@@ -129,12 +137,16 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       <label>
         Destination node
         <select
-          value={destinationNode}
+          value={destinationNode ?? ""}
           onChange={(e) =>
-            setDestinationNode(e.target.value as TNodeWithRelayChains)
+            setDestinationNode(
+              e.target.value === ""
+                ? undefined
+                : (e.target.value as TNodeWithRelayChains)
+            )
           }
-          required
         >
+          <option value="">None</option>
           {NODES_WITH_RELAY_CHAINS.map((node) => (
             <option key={node} value={node}>
               {node}
@@ -146,7 +158,7 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       <label>
         Currency From
         <select
-          key={originNode + exchangeNode + destinationNode + "currencyFrom"}
+          key={`${originNode?.toString()}${exchangeNode?.toString()}${destinationNode?.toString()}currencyFrom`}
           value={currencyFromOptionId}
           onChange={(e) => setCurrencyFromOptionId(e.target.value)}
           required
@@ -162,7 +174,7 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       <label>
         Currency To
         <select
-          key={originNode + exchangeNode + destinationNode + "currencyTo"}
+          key={`${originNode?.toString()}${exchangeNode?.toString()}${destinationNode?.toString()}currencyTo`}
           value={currencyToOptionId}
           onChange={(e) => setCurrencyToOptionId(e.target.value)}
           required
@@ -193,23 +205,6 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
           onChange={(e) => setAmount(e.target.value)}
           required
         />
-      </label>
-
-      <label>
-        Transaction type
-        <select
-          value={transactionType}
-          onChange={(e) =>
-            setTransactionType(e.target.value as keyof typeof TransactionType)
-          }
-          required
-        >
-          {Object.keys(TransactionType).map((type) => (
-            <option key={type} value={type}>
-              {type}
-            </option>
-          ))}
-        </select>
       </label>
 
       <button type="submit" disabled={loading}>

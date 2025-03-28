@@ -10,22 +10,25 @@ import type { Signer } from "@polkadot/api/types";
 import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
 import {
   RouterBuilder,
-  TransactionType,
-  TTxProgressInfo,
+  TExchangeInput,
+  TRouterEvent,
 } from "@paraspell/xcm-router";
 import { ethers } from "ethers";
+import { TAsset, TCurrencyInput } from "@paraspell/sdk";
 
 // Return status message based on the current routing status
-const getStatusMessage = (status?: TTxProgressInfo) => {
+const getStatusMessage = (status?: TRouterEvent) => {
   if (!status) {
     return "";
   }
-  if (status.type === TransactionType.TO_EXCHANGE) {
-    return "Sending to exchange...";
-  } else if (status.type === TransactionType.SWAP) {
-    return "Swapping...";
-  } else if (status.type === TransactionType.TO_DESTINATION) {
-    return "Sending to destination...";
+  if (status.type === "TRANSFER") {
+    return `Transfering tokens from ${status.node} to ${status.destinationNode}...`;
+  } else if (status.type === "SWAP") {
+    return "Swapping tokens ...";
+  } else if (status.type === "SWAP_AND_TRANSFER") {
+    return `Swapping tokens and transfering them from ${status.node} to ${status.destinationNode}...`;
+  } else if (status.type === "SELECTING_EXCHANGE") {
+    return "Picking the best exchange...";
   } else {
     return "Processing...";
   }
@@ -41,7 +44,7 @@ const XcmTransfer = () => {
     useState<InjectedAccountWithMeta>();
   const [selectedEvmAccount, setSelectedEvmAccount] =
     useState<InjectedAccountWithMeta>();
-  const [progressInfo, setProgressInfo] = useState<TTxProgressInfo>();
+  const [progressInfo, setProgressInfo] = useState<TRouterEvent>();
 
   // Initialize the wallet extension and get all accounts
   const initExtension = async () => {
@@ -96,16 +99,16 @@ const XcmTransfer = () => {
   };
 
   // Update the progress info state
-  const onStatusChange = (status: TTxProgressInfo) => {
+  const onStatusChange = (status: TRouterEvent) => {
     setProgressInfo(status);
   };
 
   // Create a transaction using the Router module and submit it
   const submitUsingRouterModule = async (
     values: FormValues,
-    injectorAddress: string,
+    senderAddress: string,
     signer: Signer,
-    evmInjectorAddress?: string,
+    evmSenderAddress?: string,
     evmSigner?: Signer
   ) => {
     const {
@@ -116,39 +119,36 @@ const XcmTransfer = () => {
       amount,
       recipientAddress,
       slippagePct,
-      transactionType,
     } = values;
 
-    // Get the exchange if it's not set to auto select
+    // Transform exchange so that when its only one items it is not an array
     const exchange =
-      values.exchange === "Auto select" ? undefined : values.exchange;
+      values.exchange.length > 1 ? values.exchange : values.exchange[0];
+
+    const determineCurrency = (asset: TAsset): TCurrencyInput => {
+      if (asset.multiLocation) {
+        return { multilocation: asset.multiLocation };
+      } else if ("assetId" in asset && asset.assetId) {
+        return { id: asset.assetId };
+      }
+      return { symbol: asset.symbol ?? "" };
+    };
 
     // Create the RouterBuilder instance
     // and build the transaction
     return RouterBuilder()
       .from(from)
       .to(to)
-      .exchange(exchange)
-      .currencyFrom(
-        currencyFrom.assetId
-          ? { id: currencyFrom.assetId }
-          : { symbol: currencyFrom.symbol ?? "" }
-      )
-      .currencyTo(
-        currencyTo.assetId
-          ? { id: currencyTo.assetId }
-          : { symbol: currencyTo.symbol ?? "" }
-      )
+      .exchange(exchange as TExchangeInput)
+      .currencyFrom(determineCurrency(currencyFrom))
+      .currencyTo(determineCurrency(currencyTo))
       .amount(amount)
-      .injectorAddress(injectorAddress)
+      .senderAddress(senderAddress)
       .recipientAddress(recipientAddress)
-      .evmInjectorAddress(evmInjectorAddress)
-      .assetHubAddress("")
+      .evmSenderAddress(evmSenderAddress)
       .signer(signer)
-      .ethSigner(undefined)
       .evmSigner(evmSigner)
       .slippagePct(slippagePct)
-      .transactionType(TransactionType[transactionType])
       .onStatusChange(onStatusChange)
       .build();
   };

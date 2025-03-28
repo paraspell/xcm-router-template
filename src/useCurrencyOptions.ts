@@ -1,6 +1,10 @@
-import type { TAsset, TNodeWithRelayChains } from "@paraspell/sdk";
+import type {
+  TAsset,
+  TNodeDotKsmWithRelayChains,
+  TNodeWithRelayChains,
+} from "@paraspell/sdk";
 import { useMemo } from "react";
-import type { TAutoSelect, TExchangeNode } from "@paraspell/xcm-router";
+import type { TExchangeInput, TExchangeNode } from "@paraspell/xcm-router";
 import {
   getSupportedAssetsFrom,
   getSupportedAssetsTo,
@@ -9,19 +13,22 @@ import {
 // This hook is used to get the currency options
 // for the currencyFrom and currencyTo fields in the transfer form.
 const useCurrencyOptions = (
-  from: TNodeWithRelayChains,
-  exchangeNode: TExchangeNode | TAutoSelect,
-  to: TNodeWithRelayChains
+  from: TNodeDotKsmWithRelayChains | undefined,
+  exchangeNode: TExchangeNode[],
+  to: TNodeWithRelayChains | undefined
 ) => {
+  // Transform exchange so that when its only one items it is not an array
+  const exchange = exchangeNode.length > 1 ? exchangeNode : exchangeNode[0];
+
   // Get the supported assets for the currencyFrom field
   const supportedAssetsFrom = useMemo(
-    () => getSupportedAssetsFrom(from, exchangeNode),
+    () => getSupportedAssetsFrom(from, exchange as TExchangeInput),
     [from, exchangeNode]
   );
 
   // Get the supported assets for the currencyTo field
   const supportedAssetsTo = useMemo(
-    () => getSupportedAssetsTo(from, exchangeNode, to),
+    () => getSupportedAssetsTo(exchange as TExchangeInput, to),
     [exchangeNode, to]
   );
 
@@ -30,8 +37,9 @@ const useCurrencyOptions = (
     () =>
       supportedAssetsFrom.reduce((map: Record<string, TAsset>, asset) => {
         const key = `${asset.symbol ?? "NO_SYMBOL"}-${
-          asset.assetId ?? "NO_ID"
+          "assetId" in asset ? asset.assetId : "NO_ID"
         }`;
+
         map[key] = asset;
         return map;
       }, {}),
@@ -43,9 +51,9 @@ const useCurrencyOptions = (
     () =>
       supportedAssetsTo.reduce((map: Record<string, TAsset>, asset) => {
         const key = `${asset.symbol ?? "NO_SYMBOL"}-${
-          asset.assetId ?? "NO_ID"
+          "assetId" in asset ? asset.assetId : "NO_ID"
         }`;
-        map[key] = asset;
+        map[key] = asset as TAsset;
         return map;
       }, {}),
     [supportedAssetsTo]
@@ -57,7 +65,12 @@ const useCurrencyOptions = (
       Object.keys(currencyFromMap).map((key) => ({
         value: key,
         label: `${currencyFromMap[key].symbol} - ${
-          currencyFromMap[key].assetId ?? "Native"
+          "assetId" in currencyFromMap[key] ||
+          "multiLocation" in currencyFromMap[key]
+            ? "assetId" in currencyFromMap[key]
+              ? currencyFromMap[key].assetId
+              : "Multi-Location"
+            : "Native"
         }`,
       })),
     [currencyFromMap]
@@ -69,22 +82,22 @@ const useCurrencyOptions = (
       Object.keys(currencyToMap).map((key) => ({
         value: key,
         label: `${currencyToMap[key].symbol} - ${
-          currencyToMap[key].assetId ?? "Native"
+          "assetId" in currencyToMap[key] ||
+          "multiLocation" in currencyToMap[key]
+            ? "assetId" in currencyToMap[key]
+              ? currencyToMap[key].assetId
+              : "Multi-location"
+            : "Native"
         }`,
       })),
     [currencyToMap]
   );
-
-  const isFromNotParaToPara = from === "Polkadot" || from === "Kusama";
-  const isToNotParaToPara = to === "Polkadot" || to === "Kusama";
 
   return {
     currencyFromOptions,
     currencyToOptions,
     currencyFromMap,
     currencyToMap,
-    isFromNotParaToPara,
-    isToNotParaToPara,
   };
 };
 
