@@ -1,20 +1,20 @@
 import { useState } from "react";
 import TransferForm from "./XcmTransferForm";
 import {
-  web3Accounts,
-  web3Enable,
-  web3FromAddress,
-} from "@polkadot/extension-dapp";
+  connectInjectedExtension,
+  getInjectedExtensions,
+  InjectedExtension,
+  InjectedPolkadotAccount,
+  PolkadotSigner,
+} from "polkadot-api/pjs-signer";
 import type { FormValues } from "./XcmTransferForm";
-import type { Signer } from "@polkadot/api/types";
-import type { InjectedAccountWithMeta } from "@polkadot/extension-inject/types";
 import {
   RouterBuilder,
   TExchangeInput,
   TRouterEvent,
 } from "@paraspell/xcm-router";
-import { ethers } from "ethers";
 import { TAsset, TCurrencyInput } from "@paraspell/sdk";
+import { isAddress } from "viem";
 
 // Return status message based on the current routing status
 const getStatusMessage = (status?: TRouterEvent) => {
@@ -38,64 +38,25 @@ const XcmTransfer = () => {
   const [errorVisible, setErrorVisible] = useState(false);
   const [error, setError] = useState<Error | null>(null);
   const [loading, setLoading] = useState(false);
-  const [accounts, setAccounts] = useState<InjectedAccountWithMeta[]>([]);
-  const [evmAccounts, setEvmAccounts] = useState<InjectedAccountWithMeta[]>([]);
+  const [extensions, setExtensions] = useState<string[]>([]);
+  const [selectedExtension, setSelectedExtension] =
+    useState<InjectedExtension | null>(null);
+  const [accounts, setAccounts] = useState<InjectedPolkadotAccount[]>([]);
   const [selectedAccount, setSelectedAccount] =
-    useState<InjectedAccountWithMeta>();
+    useState<InjectedPolkadotAccount>();
+  const [evmAccounts, setEvmAccounts] = useState<InjectedPolkadotAccount[]>([]);
   const [selectedEvmAccount, setSelectedEvmAccount] =
-    useState<InjectedAccountWithMeta>();
+    useState<InjectedPolkadotAccount>();
   const [progressInfo, setProgressInfo] = useState<TRouterEvent>();
-
-  // Initialize the wallet extension and get all accounts
-  const initExtension = async () => {
-    const allInjected = await web3Enable("ParaSpellXcmSdk");
-
-    if (!allInjected) {
-      alert("No wallet extension found, install it to connect");
-      throw Error("No Wallet Extension Found!");
-    }
-  };
 
   // Get all accounts from the wallet extension
   const initAccounts = async () => {
-    await initExtension();
-
-    // Get all accounts
-    const allAccounts = await web3Accounts();
-
-    if (allAccounts.length === 0) {
-      alert("No accounts found, create or import an account to connect");
-      throw Error("No Accounts Found!");
+    const exts = getInjectedExtensions();
+    if (exts.length === 0) {
+      alert("No wallet extension found, please install one.");
+      throw Error("No Wallet Extension Found!");
     }
-
-    // Save accounts to state
-    setAccounts(allAccounts);
-
-    // Set the first account as selected
-    setSelectedAccount(allAccounts[0]);
-  };
-
-  // Get all EVM accounts from the wallet extension
-  const initEvmAccounts = async () => {
-    await initExtension();
-
-    // Get all accounts
-    const allAccounts = await web3Accounts();
-
-    if (allAccounts.length === 0) {
-      alert("No accounts found, create or import an account to connect");
-      throw Error("No Accounts Found!");
-    }
-
-    const filteredAccounts = allAccounts.filter((account) =>
-      ethers.isAddress(account.address)
-    );
-
-    // Save accounts to state
-    setEvmAccounts(filteredAccounts);
-
-    // Set the first account as selected
-    setSelectedEvmAccount(filteredAccounts[0]);
+    setExtensions(exts);
   };
 
   // Update the progress info state
@@ -103,13 +64,27 @@ const XcmTransfer = () => {
     setProgressInfo(status);
   };
 
+  const onExtensionSelect = async (name: string) => {
+    const injectedExtension = await connectInjectedExtension(name);
+    setSelectedExtension(injectedExtension);
+
+    // Get the accounts from the selected extension
+    const accounts = injectedExtension.getAccounts();
+
+    // Filter and set only non-EVM accounts
+    setAccounts(accounts.filter((account) => !isAddress(account.address)));
+
+    // Filter and set only EVM accounts
+    setEvmAccounts(accounts.filter((account) => isAddress(account.address)));
+  };
+
   // Create a transaction using the Router module and submit it
   const submitUsingRouterModule = async (
     values: FormValues,
     senderAddress: string,
-    signer: Signer,
+    signer: PolkadotSigner,
     evmSenderAddress?: string,
-    evmSigner?: Signer
+    evmSigner?: PolkadotSigner
   ) => {
     const {
       from,
@@ -163,21 +138,17 @@ const XcmTransfer = () => {
     setLoading(true);
 
     // Get the injector for the selected account
-    const injector = await web3FromAddress(selectedAccount.address);
-
-    // Get the EVM injector for the selected EVM account
-    const evmInjector = selectedEvmAccount
-      ? await web3FromAddress(selectedEvmAccount.address)
-      : undefined;
+    const signer = selectedAccount.polkadotSigner;
+    const evmSigner = selectedEvmAccount?.polkadotSigner;
 
     try {
       // Create the transaction using the SDK and submit it
       await submitUsingRouterModule(
         formValues,
         selectedAccount.address,
-        injector.signer,
+        signer,
         selectedEvmAccount?.address,
-        evmInjector?.signer
+        evmSigner
       );
       alert("Transaction was successful!");
     } catch (e) {
@@ -193,59 +164,71 @@ const XcmTransfer = () => {
   return (
     <div>
       <div className="formHeader">
-        <div className="wallets">
-          {accounts.length > 0 ? (
+        {extensions.length > 0 ? (
+          <div>
+            <h4>Select extension:</h4>
+            <select
+              defaultValue=""
+              value={selectedExtension?.name}
+              onChange={(e) => onExtensionSelect(e.target.value)}
+            >
+              <option disabled value="">
+                -- select an option --
+              </option>
+              {extensions.map((name) => (
+                <option key={name} value={name}>
+                  {name}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <button onClick={initAccounts}>Connect Wallet</button>
+        )}
+        {accounts.length > 0 && (
+          <div>
             <div>
-              <div>
-                <h4>Connected to:</h4>
-              </div>
-              <select
-                style={{}}
-                value={selectedAccount?.address}
-                onChange={(e) =>
-                  setSelectedAccount(
-                    accounts.find((acc) => acc.address === e.target.value)
-                  )
-                }
-              >
-                {accounts.map((acc) => (
-                  <option key={acc.address} value={acc.address}>
-                    {acc.meta.name} - {acc.address}
-                  </option>
-                ))}
-              </select>
+              <h4>Select account:</h4>
             </div>
-          ) : (
-            <button className="connectWallet" onClick={initAccounts}>
-              Connect Wallet
-            </button>
-          )}
-        </div>
-        <div>
-          {evmAccounts.length > 0 ? (
+            <select
+              style={{}}
+              value={selectedAccount?.address}
+              onChange={(e) =>
+                setSelectedAccount(
+                  accounts.find((acc) => acc.address === e.target.value)
+                )
+              }
+            >
+              {accounts.map(({ name, address }) => (
+                <option key={address} value={address}>
+                  {name} - {address}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {evmAccounts.length > 0 && (
+          <div>
             <div>
-              <h4>EVM Accounts</h4>
-              <select
-                value={selectedEvmAccount?.address}
-                onChange={(e) =>
-                  setSelectedEvmAccount(
-                    evmAccounts.find((acc) => acc.address === e.target.value)
-                  )
-                }
-              >
-                {evmAccounts.map((acc) => (
-                  <option key={acc.address} value={acc.address}>
-                    {acc.meta.name} - {acc.address}
-                  </option>
-                ))}
-              </select>
+              <h4>Select EVM account:</h4>
             </div>
-          ) : (
-            <button className="connectWallet" onClick={initEvmAccounts}>
-              Connect EVM wallet
-            </button>
-          )}
-        </div>
+            <select
+              style={{}}
+              value={selectedEvmAccount?.address}
+              onChange={(e) =>
+                setSelectedEvmAccount(
+                  evmAccounts.find((acc) => acc.address === e.target.value)
+                )
+              }
+            >
+              {evmAccounts.map(({ name, address }) => (
+                <option key={address} value={address}>
+                  {name} - {address}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
       </div>
       <TransferForm onSubmit={onSubmit} loading={loading} />
       <div className="statusMessage">{getStatusMessage(progressInfo)}</div>
