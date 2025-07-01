@@ -71,11 +71,23 @@ const XcmTransfer = () => {
     // Get the accounts from the selected extension
     const accounts = injectedExtension.getAccounts();
 
+    const polkadotAccounts = accounts.filter(
+      (account) => !isAddress(account.address)
+    );
+
+    const evmAccounts = accounts.filter((account) =>
+      isAddress(account.address)
+    );
+
     // Filter and set only non-EVM accounts
-    setAccounts(accounts.filter((account) => !isAddress(account.address)));
+    setAccounts(polkadotAccounts);
 
     // Filter and set only EVM accounts
-    setEvmAccounts(accounts.filter((account) => isAddress(account.address)));
+    setEvmAccounts(evmAccounts);
+
+    // Preselect the first account if available
+    if (polkadotAccounts.length > 0) setSelectedAccount(polkadotAccounts[0]);
+    if (evmAccounts.length > 0) setSelectedEvmAccount(evmAccounts[0]);
   };
 
   // Create a transaction using the Router module and submit it
