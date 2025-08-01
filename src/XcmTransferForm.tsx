@@ -38,13 +38,12 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
   const [exchangeNode, setExchangeNode] = useState<TExchangeNode[]>([
     "HydrationDex",
   ]);
-  const [currencyFromOptionId, setCurrencyFromOptionId] =
-    useState("ASTR-NO_ID");
-  const [currencyToOptionId, setCurrencyToOptionId] = useState("DOT-5");
+  const [currencyFromOptionId, setCurrencyFromOptionId] = useState("");
+  const [currencyToOptionId, setCurrencyToOptionId] = useState("");
   const [recipientAddress, setRecipientAddress] = useState(
     "5F5586mfsnM6durWRLptYt3jSUs55KEmahdodQ5tQMr9iY96"
   );
-  const [amount, setAmount] = useState("10000000000000000000");
+  const [amount, setAmount] = useState("1000000000000000000000000");
 
   // Get currency options based on the selected nodes
   const {
@@ -53,6 +52,8 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
     currencyToOptions,
     currencyToMap,
   } = useCurrencyOptions(originNode, exchangeNode, destinationNode);
+
+  console.log("Currency From Options:", currencyFromOptions);
 
   // Handle form submission
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
@@ -74,10 +75,10 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
   };
 
   useEffect(() => {
-    // If currencyFromMap has keys, set the first one as default
+    // If currencyFromMap has keys, set the last one as default
     const keys = Object.keys(currencyFromMap);
     if (keys.length > 0) {
-      setCurrencyFromOptionId(keys[0]);
+      setCurrencyFromOptionId(keys[keys.length - 1]);
     }
   }, [currencyFromMap]);
 
