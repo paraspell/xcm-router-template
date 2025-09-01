@@ -1,10 +1,6 @@
-import type {
-  TAsset,
-  TNodeDotKsmWithRelayChains,
-  TNodeWithRelayChains,
-} from "@paraspell/sdk";
+import type { TAssetInfo, TChain, TSubstrateChain } from "@paraspell/sdk";
 import { useMemo } from "react";
-import type { TExchangeInput, TExchangeNode } from "@paraspell/xcm-router";
+import type { TExchangeInput, TExchangeChain } from "@paraspell/xcm-router";
 import {
   getSupportedAssetsFrom,
   getSupportedAssetsTo,
@@ -13,29 +9,29 @@ import {
 // This hook is used to get the currency options
 // for the currencyFrom and currencyTo fields in the transfer form.
 const useCurrencyOptions = (
-  from: TNodeDotKsmWithRelayChains | undefined,
-  exchangeNode: TExchangeNode[],
-  to: TNodeWithRelayChains | undefined
+  from: TSubstrateChain | undefined,
+  exchangeChain: TExchangeChain[],
+  to: TChain | undefined
 ) => {
   // Transform exchange so that when its only one items it is not an array
-  const exchange = exchangeNode.length > 1 ? exchangeNode : exchangeNode[0];
+  const exchange = exchangeChain.length > 1 ? exchangeChain : exchangeChain[0];
 
   // Get the supported assets for the currencyFrom field
   const supportedAssetsFrom = useMemo(
     () => getSupportedAssetsFrom(from, exchange as TExchangeInput),
-    [from, exchangeNode]
+    [from, exchangeChain]
   );
 
   // Get the supported assets for the currencyTo field
   const supportedAssetsTo = useMemo(
     () => getSupportedAssetsTo(exchange as TExchangeInput, to),
-    [exchangeNode, to]
+    [exchangeChain, to]
   );
 
   // Create a map of the supported assets for the currencyFrom field
   const currencyFromMap = useMemo(
     () =>
-      supportedAssetsFrom.reduce((map: Record<string, TAsset>, asset) => {
+      supportedAssetsFrom.reduce((map: Record<string, TAssetInfo>, asset) => {
         const key = `${asset.symbol ?? "NO_SYMBOL"}-${
           "assetId" in asset ? asset.assetId : "NO_ID"
         }`;
@@ -49,11 +45,11 @@ const useCurrencyOptions = (
   // Create a map of the supported assets for the currencyTo field
   const currencyToMap = useMemo(
     () =>
-      supportedAssetsTo.reduce((map: Record<string, TAsset>, asset) => {
+      supportedAssetsTo.reduce((map: Record<string, TAssetInfo>, asset) => {
         const key = `${asset.symbol ?? "NO_SYMBOL"}-${
           "assetId" in asset ? asset.assetId : "NO_ID"
         }`;
-        map[key] = asset as TAsset;
+        map[key] = asset as TAssetInfo;
         return map;
       }, {}),
     [supportedAssetsTo]
@@ -66,10 +62,10 @@ const useCurrencyOptions = (
         value: key,
         label: `${currencyFromMap[key].symbol} - ${
           "assetId" in currencyFromMap[key] ||
-          "multiLocation" in currencyFromMap[key]
+          "location" in currencyFromMap[key]
             ? "assetId" in currencyFromMap[key]
               ? currencyFromMap[key].assetId
-              : "Multi-Location"
+              : "Location"
             : "Native"
         }`,
       })),
@@ -82,11 +78,10 @@ const useCurrencyOptions = (
       Object.keys(currencyToMap).map((key) => ({
         value: key,
         label: `${currencyToMap[key].symbol} - ${
-          "assetId" in currencyToMap[key] ||
-          "multiLocation" in currencyToMap[key]
+          "assetId" in currencyToMap[key] || "location" in currencyToMap[key]
             ? "assetId" in currencyToMap[key]
               ? currencyToMap[key].assetId
-              : "Multi-location"
+              : "Location"
             : "Native"
         }`,
       })),

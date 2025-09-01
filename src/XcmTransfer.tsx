@@ -13,7 +13,7 @@ import {
   TExchangeInput,
   TRouterEvent,
 } from "@paraspell/xcm-router";
-import { TAsset, TCurrencyInput } from "@paraspell/sdk";
+import { TAssetInfo, TCurrencyInput } from "@paraspell/sdk";
 import { isAddress } from "viem";
 
 // Return status message based on the current routing status
@@ -22,11 +22,11 @@ const getStatusMessage = (status?: TRouterEvent) => {
     return "";
   }
   if (status.type === "TRANSFER") {
-    return `Transfering tokens from ${status.node} to ${status.destinationNode}...`;
+    return `Transfering tokens from ${status.chain} to ${status.destinationChain}...`;
   } else if (status.type === "SWAP") {
     return "Swapping tokens ...";
   } else if (status.type === "SWAP_AND_TRANSFER") {
-    return `Swapping tokens and transfering them from ${status.node} to ${status.destinationNode}...`;
+    return `Swapping tokens and transfering them from ${status.chain} to ${status.destinationChain}...`;
   } else if (status.type === "SELECTING_EXCHANGE") {
     return "Picking the best exchange...";
   } else {
@@ -112,9 +112,9 @@ const XcmTransfer = () => {
     const exchange =
       values.exchange.length > 1 ? values.exchange : values.exchange[0];
 
-    const determineCurrency = (asset: TAsset): TCurrencyInput => {
-      if (asset.multiLocation) {
-        return { multilocation: asset.multiLocation };
+    const determineCurrency = (asset: TAssetInfo): TCurrencyInput => {
+      if (asset.location) {
+        return { location: asset.location };
       } else if ("assetId" in asset && asset.assetId) {
         return { id: asset.assetId };
       }

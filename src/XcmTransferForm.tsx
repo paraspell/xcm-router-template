@@ -1,25 +1,25 @@
 import { useState, useEffect, FormEvent, FC } from "react";
 import useCurrencyOptions from "./useCurrencyOptions";
 import {
-  NODES_WITH_RELAY_CHAINS,
-  NODES_WITH_RELAY_CHAINS_DOT_KSM,
-  TAsset,
-  TNodeDotKsmWithRelayChains,
-  TNodeWithRelayChains,
+  CHAINS,
+  SUBSTRATE_CHAINS,
+  TAssetInfo,
+  TChain,
+  TSubstrateChain,
 } from "@paraspell/sdk";
-import { EXCHANGE_NODES, TExchangeNode } from "@paraspell/xcm-router";
+import { EXCHANGE_CHAINS, TExchangeChain } from "@paraspell/xcm-router";
 
 export type FormValues = {
-  from?: TNodeDotKsmWithRelayChains;
-  exchange: TExchangeNode[];
-  to?: TNodeWithRelayChains;
+  from?: TSubstrateChain;
+  exchange: TExchangeChain[];
+  to?: TChain;
   currencyFromOptionId: string;
   currencyToOptionId: string;
   recipientAddress: string;
   amount: string;
   slippagePct: string;
-  currencyFrom: TAsset;
-  currencyTo: TAsset;
+  currencyFrom: TAssetInfo;
+  currencyTo: TAssetInfo;
 };
 
 type Props = {
@@ -29,13 +29,13 @@ type Props = {
 
 const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
   // Prepare states for the form fields (origin and destination can be undefined)
-  const [originNode, setOriginNode] = useState<
-    TNodeDotKsmWithRelayChains | undefined
-  >("Astar");
-  const [destinationNode, setDestinationNode] = useState<
-    TNodeWithRelayChains | undefined
-  >("BifrostPolkadot");
-  const [exchangeNode, setExchangeNode] = useState<TExchangeNode[]>([
+  const [originChain, setOriginChain] = useState<TSubstrateChain | undefined>(
+    "Astar"
+  );
+  const [destChain, setDestChain] = useState<TChain | undefined>(
+    "BifrostPolkadot"
+  );
+  const [exchangeChain, setExchangeChain] = useState<TExchangeChain[]>([
     "HydrationDex",
   ]);
   const [currencyFromOptionId, setCurrencyFromOptionId] = useState("");
@@ -45,13 +45,13 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
   );
   const [amount, setAmount] = useState("1000000000000000000000000");
 
-  // Get currency options based on the selected nodes
+  // Get currency options based on the selected chains
   const {
     currencyFromOptions,
     currencyFromMap,
     currencyToOptions,
     currencyToMap,
-  } = useCurrencyOptions(originNode, exchangeNode, destinationNode);
+  } = useCurrencyOptions(originChain, exchangeChain, destChain);
 
   console.log("Currency From Options:", currencyFromOptions);
 
@@ -59,9 +59,9 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const transformedValues: FormValues = {
-      from: originNode,
-      exchange: exchangeNode,
-      to: destinationNode,
+      from: originChain,
+      exchange: exchangeChain,
+      to: destChain,
       currencyFromOptionId,
       currencyToOptionId,
       recipientAddress,
@@ -93,64 +93,62 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
   return (
     <form onSubmit={handleSubmit}>
       <label>
-        Origin node
+        Origin chain
         <select
-          value={originNode ?? ""}
+          value={originChain ?? ""}
           onChange={(e) =>
-            setOriginNode(
+            setOriginChain(
               e.target.value === ""
                 ? undefined
-                : (e.target.value as TNodeDotKsmWithRelayChains)
+                : (e.target.value as TSubstrateChain)
             )
           }
         >
           <option value="">None</option>
-          {NODES_WITH_RELAY_CHAINS_DOT_KSM.map((node) => (
-            <option key={node} value={node}>
-              {node}
+          {SUBSTRATE_CHAINS.map((chain) => (
+            <option key={chain} value={chain}>
+              {chain}
             </option>
           ))}
         </select>
       </label>
 
       <label>
-        Exchange node
+        Exchange chain
         <select
           multiple
-          value={exchangeNode}
+          value={exchangeChain}
           onChange={(e) => {
             const selectedOptions = Array.from(
               e.target.selectedOptions,
               (option) => option.value
             );
-            setExchangeNode(selectedOptions as TExchangeNode[]);
+            setExchangeChain(selectedOptions as TExchangeChain[]);
           }}
           required
         >
-          {EXCHANGE_NODES.map((node) => (
-            <option key={node} value={node}>
-              {node}
+          {EXCHANGE_CHAINS.map((chain) => (
+            <option key={chain} value={chain}>
+              {chain}
             </option>
           ))}
         </select>
       </label>
 
       <label>
-        Destination node
+        Destination chain
         <select
-          value={destinationNode ?? ""}
+          value={destChain ?? ""}
           onChange={(e) =>
-            setDestinationNode(
-              e.target.value === ""
-                ? undefined
-                : (e.target.value as TNodeWithRelayChains)
+            setDestChain(
+              e.target.value === "" ? undefined : (e.target.value as TChain)
             )
           }
         >
           <option value="">None</option>
-          {NODES_WITH_RELAY_CHAINS.map((node) => (
-            <option key={node} value={node}>
-              {node}
+          {CHAINS.map((chain) => (
+            <option key={chain} value={chain}>
+              {chain}
             </option>
           ))}
         </select>
@@ -159,7 +157,7 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       <label>
         Currency From
         <select
-          key={`${originNode?.toString()}${exchangeNode?.toString()}${destinationNode?.toString()}currencyFrom`}
+          key={`${originChain?.toString()}${exchangeChain?.toString()}${destChain?.toString()}currencyFrom`}
           value={currencyFromOptionId}
           onChange={(e) => setCurrencyFromOptionId(e.target.value)}
           required
@@ -175,7 +173,7 @@ const TransferForm: FC<Props> = ({ onSubmit, loading }) => {
       <label>
         Currency To
         <select
-          key={`${originNode?.toString()}${exchangeNode?.toString()}${destinationNode?.toString()}currencyTo`}
+          key={`${originChain?.toString()}${exchangeChain?.toString()}${destChain?.toString()}currencyTo`}
           value={currencyToOptionId}
           onChange={(e) => setCurrencyToOptionId(e.target.value)}
           required
